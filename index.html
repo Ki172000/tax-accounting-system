@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en-PH">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="SME Tax & Payroll Hub 2026 — BIR-compliant tax accounting for Philippine businesses." />
+    <meta name="theme-color" content="#0f1a2e" />
+
+    <!-- Favicon: inline SVG data URI, no external dependency -->
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%230f1a2e'/><text x='5' y='23' font-size='18' fill='%2338bdf8'>₱</text></svg>"
+    />
+
+    <!-- Google Fonts: DM Serif Display (headings) + DM Mono (data/numbers) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap"
+      rel="stylesheet"
+    />
+
+    <title>SME Tax &amp; Payroll Hub 2026</title>
+
+    <style>
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+      :root {
+        --navy:        #0f1a2e;
+        --navy-mid:    #162236;
+        --navy-light:  #1e3356;
+        --sky:         #38bdf8;
+        --sky-dim:     #0ea5e9;
+        --gold:        #f59e0b;
+        --emerald:     #10b981;
+        --rose:        #f43f5e;
+        --text-bright: #f0f6ff;
+        --text-muted:  #8ba3c7;
+        --border:      rgba(56, 189, 248, 0.12);
+        --font-head:   'DM Serif Display', Georgia, serif;
+        --font-body:   'DM Sans', system-ui, sans-serif;
+        --font-mono:   'DM Mono', 'Courier New', monospace;
+      }
+
+      html, body, #root {
+        height: 100%;
+        background: var(--navy);
+        color: var(--text-bright);
+        font-family: var(--font-body);
+        font-size: 15px;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      /* Scrollbar styling */
+      ::-webkit-scrollbar { width: 6px; }
+      ::-webkit-scrollbar-track { background: var(--navy); }
+      ::-webkit-scrollbar-thumb { background: var(--navy-light); border-radius: 3px; }
+      ::-webkit-scrollbar-thumb:hover { background: var(--sky-dim); }
+
+      /* Loading state before React hydrates */
+      #root:empty::after {
+        content: '₱';
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        font-family: var(--font-head);
+        font-size: 3rem;
+        color: var(--sky);
+        opacity: 0.4;
+        animation: pulse 1.4s ease-in-out infinite;
+      }
+
+      @keyframes pulse {
+        0%, 100% { opacity: 0.2; }
+        50%       { opacity: 0.6; }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
