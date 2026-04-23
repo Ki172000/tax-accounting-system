@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, lazy, Suspense } from 'react'
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, BarChart, Bar, Cell
@@ -58,9 +58,9 @@ const summaryCards = [
 ]
 
 const recentEntries = [
-  { id: 'JE-2026-0441', date: 'Apr 22', acct: 'Output VAT',            debit: '',          credit: '₱24,000', user: 'R. Santos' },
-  { id: 'JE-2026-0440', date: 'Apr 22', acct: 'Accounts Receivable',   debit: '₱224,000',  credit: '',        user: 'R. Santos' },
-  { id: 'JE-2026-0439', date: 'Apr 21', acct: 'EWT Payable — 2%',      debit: '',          credit: '₱3,200',  user: 'M. Reyes' },
+  { id: 'JE-2026-0441', date: 'Apr 22', acct: 'Output VAT',             debit: '',         credit: '₱24,000', user: 'R. Santos' },
+  { id: 'JE-2026-0440', date: 'Apr 22', acct: 'Accounts Receivable',    debit: '₱224,000', credit: '',        user: 'R. Santos' },
+  { id: 'JE-2026-0439', date: 'Apr 21', acct: 'EWT Payable — 2%',       debit: '',         credit: '₱3,200',  user: 'M. Reyes' },
   { id: 'JE-2026-0438', date: 'Apr 21', acct: 'Professional Fees Exp.', debit: '₱160,000', credit: '',        user: 'M. Reyes' },
   { id: 'JE-2026-0437', date: 'Apr 20', acct: 'Input VAT',              debit: '₱18,600',  credit: '',        user: 'C. Lim' },
 ]
@@ -113,28 +113,36 @@ function Badge({ children, color }) {
   )
 }
 
-/* ─── Sections ───────────────────────────────────────────────────── */
-function SummaryStrip() {
+/* ─── Chart loading fallback ─────────────────────────────────────── */
+function ChartLoader() {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
-      {summaryCards.map(c => (
-        <Card key={c.label} style={{ padding: '1rem 1.2rem' }}>
-          <p style={{ fontSize: 11, color: T.textMuted, fontFamily: css.fontMono, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-            {c.label}
-          </p>
-          <p style={{ fontFamily: css.fontMono, fontSize: '1.45rem', fontWeight: 500, color: c.color, lineHeight: 1 }}>
-            {c.value}
-          </p>
-          <p style={{ fontSize: 12, color: c.up ? T.emerald : T.rose, marginTop: 6 }}>
-            {c.delta} <span style={{ color: T.textMuted }}>vs last month</span>
-          </p>
-        </Card>
-      ))}
-    </div>
+    <Card>
+      <div style={{
+        height: 220,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: T.textMuted,
+        fontFamily: css.fontMono,
+        fontSize: 12,
+        gap: 8,
+      }}>
+        <span style={{
+          display: 'inline-block',
+          width: 10,
+          height: 10,
+          borderRadius: '50%',
+          background: T.sky,
+          opacity: 0.5,
+        }} />
+        Loading chart…
+      </div>
+    </Card>
   )
 }
 
-function VATChart() {
+/* ─── Chart inner components ─────────────────────────────────────── */
+function VATChartInner() {
   return (
     <Card>
       <SectionTitle>VAT trend — Output vs Input (6-month)</SectionTitle>
@@ -153,7 +161,7 @@ function VATChart() {
           <CartesianGrid strokeDasharray="3 3" stroke={T.border} />
           <XAxis dataKey="month" tick={{ fill: T.textMuted, fontSize: 11, fontFamily: css.fontMono }} axisLine={false} tickLine={false} />
           <YAxis tick={{ fill: T.textMuted, fontSize: 10, fontFamily: css.fontMono }} axisLine={false} tickLine={false}
-            tickFormatter={v => `₱${(v/1000).toFixed(0)}k`} />
+            tickFormatter={v => `₱${(v / 1000).toFixed(0)}k`} />
           <Tooltip
             contentStyle={{ background: T.navyLight, border: `0.5px solid ${T.border}`, borderRadius: 8, fontFamily: css.fontMono, fontSize: 12 }}
             labelStyle={{ color: T.textMuted }}
@@ -175,7 +183,7 @@ function VATChart() {
   )
 }
 
-function EWTChart() {
+function EWTChartInner() {
   return (
     <Card>
       <SectionTitle>EWT breakdown (April)</SectionTitle>
@@ -183,7 +191,7 @@ function EWTChart() {
         <BarChart data={withholdingData} layout="vertical" margin={{ top: 0, right: 12, bottom: 0, left: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke={T.border} horizontal={false} />
           <XAxis type="number" tick={{ fill: T.textMuted, fontSize: 10, fontFamily: css.fontMono }} axisLine={false} tickLine={false}
-            tickFormatter={v => `₱${(v/1000).toFixed(0)}k`} />
+            tickFormatter={v => `₱${(v / 1000).toFixed(0)}k`} />
           <YAxis type="category" dataKey="type" tick={{ fill: T.textMuted, fontSize: 11, fontFamily: css.fontMono }} axisLine={false} tickLine={false} width={56} />
           <Tooltip
             contentStyle={{ background: T.navyLight, border: `0.5px solid ${T.border}`, borderRadius: 8, fontFamily: css.fontMono, fontSize: 12 }}
@@ -198,6 +206,40 @@ function EWTChart() {
         Total EWT remitted: <span style={{ color: T.textBright }}>₱71,000</span>
       </p>
     </Card>
+  )
+}
+
+/* ─── Lazy wrappers ──────────────────────────────────────────────── */
+const VATChart = lazy(() =>
+  new Promise(resolve =>
+    setTimeout(() => resolve({ default: VATChartInner }), 0)
+  )
+)
+
+const EWTChart = lazy(() =>
+  new Promise(resolve =>
+    setTimeout(() => resolve({ default: EWTChartInner }), 0)
+  )
+)
+
+/* ─── Dashboard sections ─────────────────────────────────────────── */
+function SummaryStrip() {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
+      {summaryCards.map(c => (
+        <Card key={c.label} style={{ padding: '1rem 1.2rem' }}>
+          <p style={{ fontSize: 11, color: T.textMuted, fontFamily: css.fontMono, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+            {c.label}
+          </p>
+          <p style={{ fontFamily: css.fontMono, fontSize: '1.45rem', fontWeight: 500, color: c.color, lineHeight: 1 }}>
+            {c.value}
+          </p>
+          <p style={{ fontSize: 12, color: c.up ? T.emerald : T.rose, marginTop: 6 }}>
+            {c.delta} <span style={{ color: T.textMuted }}>vs last month</span>
+          </p>
+        </Card>
+      ))}
+    </div>
   )
 }
 
@@ -393,8 +435,12 @@ function Dashboard() {
     <main style={{ flex: 1, overflow: 'auto', padding: '1.5rem 2rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
       <SummaryStrip />
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '1.25rem' }}>
-        <VATChart />
-        <EWTChart />
+        <Suspense fallback={<ChartLoader />}>
+          <VATChart />
+        </Suspense>
+        <Suspense fallback={<ChartLoader />}>
+          <EWTChart />
+        </Suspense>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '1.25rem' }}>
         <JournalTable />
