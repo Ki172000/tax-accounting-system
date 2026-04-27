@@ -1,651 +1,647 @@
-import { useState, useMemo, lazy, Suspense } from 'react'
+import { useState, useMemo } from "react";
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, BarChart, Bar, Cell
-} from 'recharts'
+  LayoutDashboard, BookOpen, Plus, X, ChevronRight,
+  TrendingUp, TrendingDown, Minus, AlertCircle, Building2,
+  FileText, ChevronsUpDown, Check, ArrowUpRight
+} from "lucide-react";
 
-/* ─── Design tokens (Light Mode) ────────────────────────────────── */
-const T = {
-  white:       '#FFFFFF',
-  bg:          '#F8FAFC',
-  sidebar:     '#F1F5F9',
-  border:      '#E2E8F0',
-  borderLight: '#F1F5F9',
-  text:        '#0F172A',
-  textMid:     '#475569',
-  textMuted:   '#94A3B8',
-  blue:        '#2563EB',
-  blueDim:     '#DBEAFE',
-  blueDeep:    '#1D4ED8',
-  emerald:     '#059669',
-  emeraldDim:  '#D1FAE5',
-  amber:       '#D97706',
-  amberDim:    '#FEF3C7',
-  rose:        '#E11D48',
-  roseDim:     '#FFE4E6',
-  slate:       '#64748B',
+/* ── COA Master ─────────────────────────────────────────────────── */
+const COA = [
+  { code: "10101", title: "Cash on Hand",         type: "asset"   },
+  { code: "10201", title: "Accounts Receivable",  type: "asset"   },
+  { code: "20101", title: "Accounts Payable",      type: "liability"},
+  { code: "20201", title: "Output VAT",            type: "liability"},
+  { code: "20202", title: "Input VAT",             type: "asset"   },
+  { code: "20301", title: "EWT Payable",           type: "liability"},
+  { code: "30101", title: "Owner's Equity",        type: "equity"  },
+  { code: "40101", title: "Sales Revenue",         type: "income"  },
+  { code: "40201", title: "Service Income",        type: "income"  },
+  { code: "50101", title: "Operating Expenses",    type: "expense" },
+  { code: "50201", title: "Rent Expense",          type: "expense" },
+  { code: "50301", title: "Professional Fees",     type: "expense" },
+];
+
+/* ── Seed Data ──────────────────────────────────────────────────── */
+let _seq = 6;
+function nextId() {
+  return `JE-2026-${String(_seq++).padStart(4, "0")}`;
 }
 
-const F = {
-  head: "'DM Serif Display', Georgia, serif",
-  body: "'DM Sans', system-ui, sans-serif",
-  mono: "'DM Mono', 'Courier New', monospace",
-}
-
-/* ─── Helpers ────────────────────────────────────────────────────── */
-let entryCounter = 1
-
-function generateId() {
-  const id = `JE-2026-${String(entryCounter).padStart(4, '0')}`
-  entryCounter++
-  return id
-}
-
-function calcVAT(grossAmount, taxCategory, type) {
-  const gross = parseFloat(grossAmount) || 0
-  if (taxCategory === '12% VAT') {
-    const net = gross / 1.12
-    const vat = gross / 1.12 * 0.12
-    return {
-      gross: parseFloat(gross.toFixed(2)),
-      net:   parseFloat(net.toFixed(2)),
-      vat:   parseFloat(vat.toFixed(2)),
-      outputVAT: type === 'income' ? parseFloat(vat.toFixed(2)) : 0,
-      inputVAT:  type === 'expense' ? parseFloat(vat.toFixed(2)) : 0,
-    }
-  }
-  return {
-    gross: parseFloat(gross.toFixed(2)),
-    net:   parseFloat(gross.toFixed(2)),
-    vat:   0,
-    outputVAT: 0,
-    inputVAT:  0,
-  }
-}
-
-function fmt(n) {
-  return '₱' + Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-}
-
-function fmtDate(iso) {
-  return new Date(iso).toLocaleString('en-PH', {
-    month: 'short', day: 'numeric', year: 'numeric',
-    hour: '2-digit', minute: '2-digit',
-  })
-}
-
-/* ─── Seed data ──────────────────────────────────────────────────── */
 const SEED = [
-  { id: 'JE-2026-0001', type: 'income',  taxCategory: '12% VAT', description: 'IT Consultancy Fee', gross: 112000, net: 100000, vat: 12000, outputVAT: 12000, inputVAT: 0, timestamp: '2026-04-01T09:15:00Z', user: 'R. Santos' },
-  { id: 'JE-2026-0002', type: 'expense', taxCategory: '12% VAT', description: 'Office Supplies',    gross:  11200, net:  10000, vat:  1200, outputVAT: 0,     inputVAT: 1200, timestamp: '2026-04-05T10:30:00Z', user: 'M. Reyes' },
-  { id: 'JE-2026-0003', type: 'income',  taxCategory: '0% VAT',  description: 'Export Services',    gross:  80000, net:  80000, vat:     0, outputVAT: 0,     inputVAT: 0, timestamp: '2026-04-10T14:00:00Z', user: 'R. Santos' },
-  { id: 'JE-2026-0004', type: 'expense', taxCategory: '12% VAT', description: 'Rent Expense',       gross:  56000, net:  50000, vat:  6000, outputVAT: 0,     inputVAT: 6000, timestamp: '2026-04-15T08:45:00Z', user: 'C. Lim' },
-  { id: 'JE-2026-0005', type: 'income',  taxCategory: '12% VAT', description: 'Software License',   gross:  44800, net:  40000, vat:  4800, outputVAT: 4800,  inputVAT: 0, timestamp: '2026-04-18T11:20:00Z', user: 'R. Santos' },
-]
-entryCounter = 6
+  { id:"JE-2026-0001", date:"2026-04-01", accountCode:"40101", accountTitle:"Sales Revenue",       particulars:"IT Consultancy – Q2 Invoice",  side:"credit", grossAmount:112000, netAmount:100000, vatAmount:12000, taxMode:"inclusive", postedBy:"R. Santos" },
+  { id:"JE-2026-0002", date:"2026-04-01", accountCode:"20201", accountTitle:"Output VAT",          particulars:"Output VAT – Q2 Invoice",       side:"credit", grossAmount:12000,  netAmount:12000,  vatAmount:0,     taxMode:"inclusive", postedBy:"R. Santos" },
+  { id:"JE-2026-0003", date:"2026-04-01", accountCode:"10101", accountTitle:"Cash on Hand",        particulars:"Receipt – IT Consultancy",      side:"debit",  grossAmount:112000, netAmount:112000, vatAmount:0,     taxMode:"exclusive", postedBy:"R. Santos" },
+  { id:"JE-2026-0004", date:"2026-04-05", accountCode:"50101", accountTitle:"Operating Expenses",  particulars:"Office Supplies Apr 2026",      side:"debit",  grossAmount:11200,  netAmount:10000,  vatAmount:1200,  taxMode:"inclusive", postedBy:"M. Reyes"  },
+  { id:"JE-2026-0005", date:"2026-04-15", accountCode:"50201", accountTitle:"Rent Expense",        particulars:"April 2026 Office Rent",        side:"debit",  grossAmount:56000,  netAmount:50000,  vatAmount:6000,  taxMode:"inclusive", postedBy:"C. Lim"    },
+];
 
-/* ─── Shared UI ──────────────────────────────────────────────────── */
-function Card({ children, style = {} }) {
-  return (
-    <div style={{
-      background: T.white,
-      border: `1px solid ${T.border}`,
-      borderRadius: 12,
-      padding: '1.25rem',
-      ...style,
-    }}>
-      {children}
-    </div>
-  )
+/* ── Formatters ─────────────────────────────────────────────────── */
+const peso = (n) =>
+  "₱" + Number(n ?? 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+const fmtDate = (d) =>
+  new Date(d + "T00:00:00").toLocaleDateString("en-PH", { month:"short", day:"2-digit", year:"numeric" });
+
+/* ── Tax Engine ─────────────────────────────────────────────────── */
+function computeVAT(amount, mode) {
+  const g = parseFloat(amount) || 0;
+  if (mode === "inclusive") {
+    const net = g / 1.12;
+    const vat = g - net;
+    return { net: +net.toFixed(2), vat: +vat.toFixed(2), total: g };
+  } else {
+    const vat = g * 0.12;
+    const total = g + vat;
+    return { net: g, vat: +vat.toFixed(2), total: +total.toFixed(2) };
+  }
 }
 
-function SectionLabel({ children }) {
-  return (
-    <p style={{
-      fontFamily: F.mono,
-      fontSize: 10,
-      fontWeight: 500,
-      letterSpacing: '0.08em',
-      textTransform: 'uppercase',
-      color: T.textMuted,
-      marginBottom: 8,
-    }}>
-      {children}
-    </p>
-  )
-}
+/* ════════════════════════════════════════════════════════════════ */
+/*  MODAL                                                          */
+/* ════════════════════════════════════════════════════════════════ */
+function Modal({ onClose, onPost }) {
+  const [acct,    setAcct]    = useState(COA[0]);
+  const [side,    setSide]    = useState("debit");
+  const [taxMode, setTaxMode] = useState("inclusive");
+  const [amount,  setAmount]  = useState("");
+  const [particulars, setParticulars] = useState("");
+  const [date,    setDate]    = useState(new Date().toISOString().slice(0, 10));
+  const [coaOpen, setCoaOpen] = useState(false);
+  const [err,     setErr]     = useState("");
 
-function SectionTitle({ children }) {
-  return (
-    <h2 style={{
-      fontFamily: F.head,
-      fontSize: '1.05rem',
-      fontWeight: 400,
-      color: T.text,
-      marginBottom: '1rem',
-    }}>
-      {children}
-    </h2>
-  )
-}
+  const calc = useMemo(() => computeVAT(amount, taxMode), [amount, taxMode]);
+  const hasVAT = ["20201","20202"].includes(acct.code) || acct.type === "income" || acct.type === "expense";
 
-function Badge({ children, color, bg }) {
-  return (
-    <span style={{
-      display: 'inline-block',
-      padding: '2px 10px',
-      borderRadius: 99,
-      fontSize: 11,
-      fontFamily: F.mono,
-      fontWeight: 500,
-      background: bg,
-      color,
-    }}>
-      {children}
-    </span>
-  )
-}
-
-/* ─── Summary Cards ──────────────────────────────────────────────── */
-function SummaryStrip({ totals }) {
-  const cards = [
-    { label: 'Total Sales (Net)',  value: fmt(totals.totalNet),    color: T.blue,    bg: T.blueDim  },
-    { label: 'Total Output VAT',   value: fmt(totals.outputVAT),   color: T.blue,    bg: T.blueDim  },
-    { label: 'Total Input VAT',    value: fmt(totals.inputVAT),    color: T.emerald, bg: T.emeraldDim },
-    { label: 'Net VAT Payable',    value: fmt(totals.netVAT),      color: totals.netVAT >= 0 ? T.rose : T.emerald, bg: totals.netVAT >= 0 ? T.roseDim : T.emeraldDim },
-  ]
-  return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
-      {cards.map(c => (
-        <Card key={c.label} style={{ padding: '1rem 1.2rem', borderTop: `3px solid ${c.color}` }}>
-          <SectionLabel>{c.label}</SectionLabel>
-          <p style={{ fontFamily: F.mono, fontSize: '1.3rem', fontWeight: 500, color: T.text, lineHeight: 1 }}>
-            {c.value}
-          </p>
-        </Card>
-      ))}
-    </div>
-  )
-}
-
-/* ─── New Entry Form ─────────────────────────────────────────────── */
-function EntryForm({ onAdd }) {
-  const [type,        setType]        = useState('income')
-  const [taxCategory, setTaxCategory] = useState('12% VAT')
-  const [amount,      setAmount]      = useState('')
-  const [description, setDescription] = useState('')
-  const [preview,     setPreview]     = useState(null)
-  const [error,       setError]       = useState('')
-
-  function handleAmountChange(val) {
-    setAmount(val)
-    if (parseFloat(val) > 0) {
-      setPreview(calcVAT(val, taxCategory, type))
-    } else {
-      setPreview(null)
-    }
+  function post() {
+    if (!amount || parseFloat(amount) <= 0) { setErr("Enter a valid amount."); return; }
+    if (!particulars.trim()) { setErr("Particulars are required."); return; }
+    setErr("");
+    onPost({
+      id:           nextId(),
+      date,
+      accountCode:  acct.code,
+      accountTitle: acct.title,
+      particulars:  particulars.trim(),
+      side,
+      grossAmount:  taxMode === "inclusive" ? calc.total : calc.total,
+      netAmount:    calc.net,
+      vatAmount:    hasVAT ? calc.vat : 0,
+      taxMode,
+      postedBy:     "R. Santos",
+    });
   }
 
-  function handleTaxChange(val) {
-    setTaxCategory(val)
-    if (parseFloat(amount) > 0) {
-      setPreview(calcVAT(amount, val, type))
-    }
-  }
-
-  function handleSubmit() {
-    if (!amount || parseFloat(amount) <= 0) { setError('Please enter a valid amount.'); return }
-    if (!description.trim()) { setError('Please enter a description.'); return }
-    setError('')
-    const calc = calcVAT(amount, taxCategory, type)
-    onAdd({
-      id: generateId(),
-      type,
-      taxCategory,
-      description: description.trim(),
-      timestamp: new Date().toISOString(),
-      user: 'R. Santos',
-      ...calc,
-    })
-    setAmount('')
-    setDescription('')
-    setPreview(null)
-  }
-
-  const inputStyle = {
-    width: '100%',
-    padding: '9px 12px',
-    borderRadius: 8,
-    border: `1px solid ${T.border}`,
-    fontFamily: F.body,
-    fontSize: 13,
-    color: T.text,
-    background: T.white,
-    outline: 'none',
-  }
-
-  const labelStyle = {
-    display: 'block',
-    fontSize: 12,
-    fontWeight: 500,
-    color: T.textMid,
-    marginBottom: 5,
-    fontFamily: F.body,
-  }
+  const inputCls = "w-full border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 font-mono";
+  const labelCls = "block text-xs font-semibold text-slate-500 uppercase tracking-widest mb-1";
 
   return (
-    <Card>
-      <SectionTitle>New journal entry</SectionTitle>
+    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backdropFilter:"blur(4px)", backgroundColor:"rgba(15,23,42,0.45)" }}>
+      <div className="bg-white w-full max-w-xl shadow-2xl border border-slate-200 flex flex-col" style={{ maxHeight:"92vh" }}>
 
-      {/* Type toggle */}
-      <div style={{ marginBottom: 14 }}>
-        <label style={labelStyle}>Transaction type</label>
-        <div style={{ display: 'flex', gap: 6 }}>
-          {[['income', 'Income / Sale'], ['expense', 'Expense / Purchase']].map(([val, label]) => (
-            <button key={val} onClick={() => setType(val)} style={{
-              flex: 1, padding: '8px 0', borderRadius: 8, cursor: 'pointer',
-              fontFamily: F.body, fontSize: 13, fontWeight: 500, border: 'none',
-              background: type === val ? (val === 'income' ? T.blue : T.rose) : T.sidebar,
-              color: type === val ? T.white : T.textMid,
-              transition: 'all 0.15s',
-            }}>
-              {label}
-            </button>
-          ))}
+        {/* Modal Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50">
+          <div className="flex items-center gap-3">
+            <FileText size={16} className="text-blue-600" />
+            <span className="text-sm font-bold text-slate-800 tracking-wide uppercase">New Journal Entry</span>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 transition-colors">
+            <X size={16} />
+          </button>
         </div>
-      </div>
 
-      {/* Tax category */}
-      <div style={{ marginBottom: 14 }}>
-        <label style={labelStyle}>Tax category</label>
-        <select value={taxCategory} onChange={e => handleTaxChange(e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
-          <option>12% VAT</option>
-          <option>0% VAT</option>
-          <option>VAT Exempt</option>
-        </select>
-      </div>
+        {/* Scrollable Body */}
+        <div className="overflow-y-auto flex-1 px-6 py-5 space-y-5">
 
-      {/* Amount */}
-      <div style={{ marginBottom: 14 }}>
-        <label style={labelStyle}>Gross amount (PHP)</label>
-        <input
-          type="number"
-          placeholder="0.00"
-          value={amount}
-          onChange={e => handleAmountChange(e.target.value)}
-          style={{ ...inputStyle, fontFamily: F.mono }}
-        />
-      </div>
+          {/* Row: Date */}
+          <div>
+            <label className={labelCls}>Transaction Date</label>
+            <input type="date" value={date} onChange={e => setDate(e.target.value)} className={inputCls} />
+          </div>
 
-      {/* Description */}
-      <div style={{ marginBottom: 14 }}>
-        <label style={labelStyle}>Description / particulars</label>
-        <input
-          type="text"
-          placeholder="e.g. Service Fee, Office Supplies"
-          value={description}
-          onChange={e => setDescription(e.target.value)}
-          style={inputStyle}
-        />
-      </div>
+          {/* COA Dropdown */}
+          <div>
+            <label className={labelCls}>Account (COA)</label>
+            <div className="relative">
+              <button
+                onClick={() => setCoaOpen(o => !o)}
+                className="w-full flex items-center justify-between border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none hover:border-blue-600 transition-colors font-mono"
+              >
+                <span>{acct.code} — {acct.title}</span>
+                <ChevronsUpDown size={14} className="text-slate-400" />
+              </button>
+              {coaOpen && (
+                <div className="absolute z-10 top-full left-0 right-0 border border-slate-200 bg-white shadow-lg max-h-52 overflow-y-auto">
+                  {COA.map(c => (
+                    <button
+                      key={c.code}
+                      onClick={() => { setAcct(c); setCoaOpen(false); }}
+                      className="w-full flex items-center gap-3 px-3 py-2 text-sm text-left hover:bg-blue-50 transition-colors font-mono"
+                    >
+                      <span className={`text-xs px-1.5 py-0.5 font-bold uppercase tracking-wide ${
+                        c.type === "income"    ? "bg-emerald-100 text-emerald-700" :
+                        c.type === "expense"   ? "bg-red-100 text-red-700" :
+                        c.type === "asset"     ? "bg-blue-100 text-blue-700" :
+                        c.type === "liability" ? "bg-amber-100 text-amber-700" :
+                        "bg-slate-100 text-slate-600"
+                      }`}>{c.type}</span>
+                      <span>{c.code} — {c.title}</span>
+                      {acct.code === c.code && <Check size={12} className="ml-auto text-blue-600" />}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
 
-      {/* VAT Preview */}
-      {preview && taxCategory === '12% VAT' && (
-        <div style={{
-          background: T.bg, border: `1px solid ${T.border}`,
-          borderRadius: 8, padding: '10px 14px', marginBottom: 14,
-        }}>
-          <SectionLabel>VAT breakdown preview</SectionLabel>
-          <div style={{ display: 'flex', gap: 16 }}>
-            {[
-              ['Gross', fmt(preview.gross)],
-              ['Net',   fmt(preview.net)],
-              [type === 'income' ? 'Output VAT' : 'Input VAT', fmt(preview.vat)],
-            ].map(([k, v]) => (
-              <div key={k}>
-                <p style={{ fontSize: 10, color: T.textMuted, fontFamily: F.mono }}>{k}</p>
-                <p style={{ fontSize: 13, fontFamily: F.mono, color: T.text, fontWeight: 500 }}>{v}</p>
+          {/* Toggles row */}
+          <div className="grid grid-cols-2 gap-4">
+            {/* Side toggle */}
+            <div>
+              <label className={labelCls}>Entry Side</label>
+              <div className="flex border border-slate-300">
+                {["debit","credit"].map(s => (
+                  <button
+                    key={s}
+                    onClick={() => setSide(s)}
+                    className={`flex-1 py-2 text-xs font-bold uppercase tracking-widest transition-colors ${
+                      side === s
+                        ? s === "debit" ? "bg-blue-600 text-white" : "bg-slate-800 text-white"
+                        : "bg-white text-slate-500 hover:bg-slate-50"
+                    }`}
+                  >
+                    {s}
+                  </button>
+                ))}
               </div>
-            ))}
+            </div>
+
+            {/* Tax mode toggle */}
+            <div>
+              <label className={labelCls}>VAT Treatment</label>
+              <div className="flex border border-slate-300">
+                {[["inclusive","Tax Incl."],["exclusive","Tax Excl."]].map(([v,l]) => (
+                  <button
+                    key={v}
+                    onClick={() => setTaxMode(v)}
+                    className={`flex-1 py-2 text-xs font-bold uppercase tracking-widest transition-colors ${
+                      taxMode === v ? "bg-emerald-600 text-white" : "bg-white text-slate-500 hover:bg-slate-50"
+                    }`}
+                  >
+                    {l}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Amount */}
+          <div>
+            <label className={labelCls}>Gross Amount (PHP)</label>
+            <input
+              type="number"
+              placeholder="0.00"
+              value={amount}
+              onChange={e => setAmount(e.target.value)}
+              className={inputCls}
+            />
+          </div>
+
+          {/* Live Preview */}
+          {parseFloat(amount) > 0 && (
+            <div className="border border-slate-200 bg-slate-50 divide-y divide-slate-200">
+              <div className="px-4 py-2 flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                <span className="text-xs font-bold uppercase tracking-widest text-slate-500">Live VAT Preview — {taxMode === "inclusive" ? "Tax Inclusive" : "Tax Exclusive"}</span>
+              </div>
+              <div className="grid grid-cols-3 divide-x divide-slate-200">
+                {[
+                  ["Net Amount",  peso(calc.net)],
+                  ["VAT (12%)",   peso(hasVAT ? calc.vat : 0)],
+                  ["Total",       peso(calc.total)],
+                ].map(([k,v]) => (
+                  <div key={k} className="px-4 py-3">
+                    <p className="text-xs text-slate-400 uppercase tracking-wide mb-1 font-mono">{k}</p>
+                    <p className={`text-sm font-bold font-mono ${k === "VAT (12%)" ? "text-emerald-600" : "text-slate-800"}`}>{v}</p>
+                  </div>
+                ))}
+              </div>
+              {taxMode === "inclusive"
+                ? <p className="px-4 py-2 text-xs text-slate-400 font-mono">Formula: Net = Gross ÷ 1.12 &nbsp;|&nbsp; VAT = Gross − Net</p>
+                : <p className="px-4 py-2 text-xs text-slate-400 font-mono">Formula: VAT = Amount × 0.12 &nbsp;|&nbsp; Total = Amount + VAT</p>
+              }
+            </div>
+          )}
+
+          {/* Particulars */}
+          <div>
+            <label className={labelCls}>Particulars</label>
+            <input
+              type="text"
+              placeholder="e.g. April 2026 Office Rent"
+              value={particulars}
+              onChange={e => setParticulars(e.target.value)}
+              className={inputCls}
+            />
+          </div>
+
+          {err && (
+            <div className="flex items-center gap-2 text-red-600 text-xs font-mono">
+              <AlertCircle size={13} /> {err}
+            </div>
+          )}
+        </div>
+
+        {/* Modal Footer */}
+        <div className="flex items-center justify-between px-6 py-4 border-t border-slate-200 bg-slate-50">
+          <span className="text-xs text-slate-400 font-mono">Auto-timestamp on post · RDO 040</span>
+          <div className="flex gap-2">
+            <button onClick={onClose} className="px-4 py-2 text-xs font-bold uppercase tracking-widest text-slate-600 border border-slate-300 hover:bg-slate-100 transition-colors">
+              Cancel
+            </button>
+            <button onClick={post} className="px-5 py-2 text-xs font-bold uppercase tracking-widest bg-blue-600 text-white hover:bg-blue-700 transition-colors flex items-center gap-2">
+              <Check size={13} /> Post Entry
+            </button>
           </div>
         </div>
-      )}
-
-      {error && <p style={{ fontSize: 12, color: T.rose, marginBottom: 10, fontFamily: F.body }}>{error}</p>}
-
-      <button onClick={handleSubmit} style={{
-        width: '100%', padding: '10px', borderRadius: 8,
-        background: T.blue, color: T.white, border: 'none',
-        fontFamily: F.body, fontSize: 14, fontWeight: 500,
-        cursor: 'pointer', letterSpacing: '0.01em',
-        transition: 'background 0.15s',
-      }}>
-        Post Entry
-      </button>
-    </Card>
-  )
-}
-
-/* ─── VAT Chart ──────────────────────────────────────────────────── */
-function VATChart({ transactions }) {
-  const monthlyData = useMemo(() => {
-    const map = {}
-    transactions.forEach(tx => {
-      const m = new Date(tx.timestamp).toLocaleString('en-PH', { month: 'short' })
-      if (!map[m]) map[m] = { month: m, output: 0, input: 0 }
-      map[m].output += tx.outputVAT
-      map[m].input  += tx.inputVAT
-    })
-    return Object.values(map)
-  }, [transactions])
-
-  return (
-    <Card>
-      <SectionTitle>VAT trend — Output vs Input</SectionTitle>
-      <ResponsiveContainer width="100%" height={180}>
-        <AreaChart data={monthlyData} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
-          <defs>
-            <linearGradient id="gOut" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%"  stopColor={T.blue}    stopOpacity={0.15} />
-              <stop offset="95%" stopColor={T.blue}    stopOpacity={0} />
-            </linearGradient>
-            <linearGradient id="gIn" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%"  stopColor={T.emerald} stopOpacity={0.15} />
-              <stop offset="95%" stopColor={T.emerald} stopOpacity={0} />
-            </linearGradient>
-          </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke={T.borderLight} />
-          <XAxis dataKey="month" tick={{ fill: T.textMuted, fontSize: 11, fontFamily: F.mono }} axisLine={false} tickLine={false} />
-          <YAxis tick={{ fill: T.textMuted, fontSize: 10, fontFamily: F.mono }} axisLine={false} tickLine={false}
-            tickFormatter={v => `₱${(v/1000).toFixed(0)}k`} />
-          <Tooltip
-            contentStyle={{ background: T.white, border: `1px solid ${T.border}`, borderRadius: 8, fontFamily: F.mono, fontSize: 12 }}
-            formatter={(v, n) => [fmt(v), n === 'output' ? 'Output VAT' : 'Input VAT']}
-          />
-          <Area type="monotone" dataKey="output" stroke={T.blue}    strokeWidth={2} fill="url(#gOut)" dot={false} />
-          <Area type="monotone" dataKey="input"  stroke={T.emerald} strokeWidth={2} fill="url(#gIn)"  dot={false} />
-        </AreaChart>
-      </ResponsiveContainer>
-      <div style={{ display: 'flex', gap: 16, marginTop: 10 }}>
-        {[['Output VAT', T.blue], ['Input VAT', T.emerald]].map(([label, color]) => (
-          <span key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: T.textMuted, fontFamily: F.mono }}>
-            <span style={{ width: 18, height: 2, background: color, display: 'inline-block', borderRadius: 1 }} />
-            {label}
-          </span>
-        ))}
       </div>
-    </Card>
-  )
+    </div>
+  );
 }
 
-/* ─── Ledger Table ───────────────────────────────────────────────── */
-function LedgerTable({ transactions }) {
-  const sorted = [...transactions].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+/* ════════════════════════════════════════════════════════════════ */
+/*  JOURNAL ENTRIES VIEW                                           */
+/* ════════════════════════════════════════════════════════════════ */
+function JournalEntriesView({ transactions, onAdd }) {
+  const [showModal, setShowModal] = useState(false);
+  const [filter,    setFilter]    = useState("");
+
+  const filtered = useMemo(() => {
+    const q = filter.toLowerCase();
+    return [...transactions]
+      .sort((a, b) => b.id.localeCompare(a.id))
+      .filter(t =>
+        !q ||
+        t.id.toLowerCase().includes(q) ||
+        t.accountCode.includes(q) ||
+        t.accountTitle.toLowerCase().includes(q) ||
+        t.particulars.toLowerCase().includes(q)
+      );
+  }, [transactions, filter]);
+
+  const cols = [
+    { key:"id",           label:"JE ID",        w:"130px"  },
+    { key:"date",         label:"Date",          w:"100px"  },
+    { key:"accountCode",  label:"Acct Code",     w:"90px"   },
+    { key:"accountTitle", label:"Account Title", w:"160px"  },
+    { key:"particulars",  label:"Particulars",   w:"auto"   },
+    { key:"debit",        label:"Debit",         w:"110px", align:"right" },
+    { key:"credit",       label:"Credit",        w:"110px", align:"right" },
+    { key:"vatAmount",    label:"VAT",           w:"100px", align:"right" },
+  ];
+
+  function post(entry) {
+    onAdd(entry);
+    setShowModal(false);
+  }
 
   return (
-    <Card style={{ gridColumn: '1 / -1' }}>
-      <SectionTitle>General ledger — all entries</SectionTitle>
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: F.mono, fontSize: 12 }}>
-          <thead>
-            <tr style={{ background: T.bg }}>
-              {['Entry ID', 'Timestamp', 'Type', 'Description', 'Tax Category', 'Gross', 'Net Amount', 'VAT', 'Preparer'].map(h => (
-                <th key={h} style={{
-                  textAlign: 'left', padding: '9px 12px',
-                  color: T.textMuted, fontWeight: 500, fontSize: 10,
-                  letterSpacing: '0.06em', textTransform: 'uppercase',
-                  borderBottom: `1px solid ${T.border}`,
-                  whiteSpace: 'nowrap',
-                }}>
-                  {h}
+    <div className="flex flex-col h-full">
+      {/* Toolbar */}
+      <div className="flex items-center justify-between px-6 py-3 border-b border-slate-200 bg-white flex-shrink-0">
+        <div className="flex items-center gap-4">
+          <h2 className="text-sm font-bold text-slate-800 uppercase tracking-widest">Journal Entries</h2>
+          <span className="text-xs text-slate-400 font-mono">{filtered.length} records</span>
+        </div>
+        <div className="flex items-center gap-3">
+          <input
+            type="text"
+            placeholder="Search entries..."
+            value={filter}
+            onChange={e => setFilter(e.target.value)}
+            className="border border-slate-300 px-3 py-1.5 text-xs text-slate-700 w-52 focus:outline-none focus:border-blue-600 font-mono"
+          />
+          <button
+            onClick={() => setShowModal(true)}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors"
+          >
+            <Plus size={13} /> New Journal Entry
+          </button>
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="flex-1 overflow-auto">
+        <table className="w-full border-collapse text-xs font-mono" style={{ minWidth: 900 }}>
+          <thead className="sticky top-0 z-10">
+            <tr className="bg-slate-100 border-b-2 border-slate-300">
+              {cols.map(c => (
+                <th
+                  key={c.key}
+                  style={{ width: c.w, textAlign: c.align || "left" }}
+                  className="px-3 py-2.5 text-xs font-bold text-slate-500 uppercase tracking-widest whitespace-nowrap border-r border-slate-200 last:border-r-0"
+                >
+                  {c.label}
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {sorted.length === 0 && (
+            {filtered.length === 0 && (
               <tr>
-                <td colSpan={9} style={{ padding: '2rem', textAlign: 'center', color: T.textMuted, fontFamily: F.body }}>
-                  No entries yet. Post your first journal entry above.
+                <td colSpan={8} className="px-6 py-12 text-center text-slate-400 text-xs font-mono">
+                  No entries found. Post your first journal entry.
                 </td>
               </tr>
             )}
-            {sorted.map((e, i) => (
-              <tr key={e.id} style={{
-                background: i % 2 === 0 ? T.white : T.bg,
-                transition: 'background 0.1s',
-              }}>
-                <td style={{ padding: '10px 12px', color: T.blue, whiteSpace: 'nowrap' }}>{e.id}</td>
-                <td style={{ padding: '10px 12px', color: T.textMuted, whiteSpace: 'nowrap', fontSize: 11 }}>{fmtDate(e.timestamp)}</td>
-                <td style={{ padding: '10px 12px' }}>
-                  <Badge
-                    color={e.type === 'income' ? T.blueDeep : T.rose}
-                    bg={e.type === 'income' ? T.blueDim : T.roseDim}
-                  >
-                    {e.type === 'income' ? 'Sale' : 'Expense'}
-                  </Badge>
+            {filtered.map((t, i) => (
+              <tr
+                key={t.id}
+                className={`border-b border-slate-100 hover:bg-blue-50 transition-colors ${i % 2 === 1 ? "bg-slate-50/40" : "bg-white"}`}
+              >
+                <td className="px-3 py-2 text-blue-600 font-bold whitespace-nowrap border-r border-slate-100">{t.id}</td>
+                <td className="px-3 py-2 text-slate-500 whitespace-nowrap border-r border-slate-100">{fmtDate(t.date)}</td>
+                <td className="px-3 py-2 border-r border-slate-100">
+                  <span className="bg-slate-100 text-slate-700 px-1.5 py-0.5 font-bold tracking-wide">{t.accountCode}</span>
                 </td>
-                <td style={{ padding: '10px 12px', color: T.text }}>{e.description}</td>
-                <td style={{ padding: '10px 12px' }}>
-                  <Badge
-                    color={e.taxCategory === '12% VAT' ? T.amber : T.slate}
-                    bg={e.taxCategory === '12% VAT' ? T.amberDim : T.borderLight}
-                  >
-                    {e.taxCategory}
-                  </Badge>
+                <td className="px-3 py-2 text-slate-700 border-r border-slate-100 whitespace-nowrap">{t.accountTitle}</td>
+                <td className="px-3 py-2 text-slate-600 border-r border-slate-100 max-w-xs truncate">{t.particulars}</td>
+                <td className="px-3 py-2 text-right border-r border-slate-100">
+                  {t.side === "debit" ? <span className="text-slate-800 font-semibold">{peso(t.grossAmount)}</span> : <span className="text-slate-300">—</span>}
                 </td>
-                <td style={{ padding: '10px 12px', color: T.text, textAlign: 'right', whiteSpace: 'nowrap' }}>{fmt(e.gross)}</td>
-                <td style={{ padding: '10px 12px', color: T.emerald, textAlign: 'right', whiteSpace: 'nowrap' }}>{fmt(e.net)}</td>
-                <td style={{ padding: '10px 12px', color: T.amber, textAlign: 'right', whiteSpace: 'nowrap' }}>{fmt(e.vat)}</td>
-                <td style={{ padding: '10px 12px', color: T.textMuted }}>{e.user}</td>
+                <td className="px-3 py-2 text-right border-r border-slate-100">
+                  {t.side === "credit" ? <span className="text-slate-800 font-semibold">{peso(t.grossAmount)}</span> : <span className="text-slate-300">—</span>}
+                </td>
+                <td className="px-3 py-2 text-right">
+                  {t.vatAmount > 0
+                    ? <span className="text-emerald-600 font-semibold">{peso(t.vatAmount)}</span>
+                    : <span className="text-slate-300">—</span>
+                  }
+                </td>
               </tr>
             ))}
           </tbody>
+          {/* Totals footer */}
+          {filtered.length > 0 && (
+            <tfoot className="sticky bottom-0">
+              <tr className="bg-slate-100 border-t-2 border-slate-300 font-bold">
+                <td colSpan={5} className="px-3 py-2.5 text-xs text-slate-500 uppercase tracking-widest border-r border-slate-200">
+                  Totals — {filtered.length} entries
+                </td>
+                <td className="px-3 py-2.5 text-right border-r border-slate-200 text-slate-800">
+                  {peso(filtered.filter(t => t.side === "debit").reduce((s,t) => s + t.grossAmount, 0))}
+                </td>
+                <td className="px-3 py-2.5 text-right border-r border-slate-200 text-slate-800">
+                  {peso(filtered.filter(t => t.side === "credit").reduce((s,t) => s + t.grossAmount, 0))}
+                </td>
+                <td className="px-3 py-2.5 text-right text-emerald-600">
+                  {peso(filtered.reduce((s,t) => s + (t.vatAmount || 0), 0))}
+                </td>
+              </tr>
+            </tfoot>
+          )}
         </table>
       </div>
-    </Card>
-  )
+
+      {showModal && <Modal onClose={() => setShowModal(false)} onPost={post} />}
+    </div>
+  );
 }
 
-/* ─── Deadline Tracker ───────────────────────────────────────────── */
-const DEADLINES = [
-  { date: 'Apr 25', form: '1601-EQ', desc: 'Q1 Expanded Withholding Tax', urgent: true },
-  { date: 'Apr 30', form: '2550-M',  desc: 'March Monthly VAT Return', urgent: true },
-  { date: 'May 10', form: '1601-C',  desc: 'April Withholding on Compensation', urgent: false },
-  { date: 'May 15', form: '0619-E',  desc: 'Monthly EWT Remittance', urgent: false },
-  { date: 'May 30', form: '2550-M',  desc: 'April Monthly VAT Return', urgent: false },
-]
+/* ════════════════════════════════════════════════════════════════ */
+/*  DASHBOARD VIEW                                                 */
+/* ════════════════════════════════════════════════════════════════ */
+function DashboardView({ transactions }) {
+  const stats = useMemo(() => {
+    const outputVAT = transactions
+      .filter(t => ["20201","40101","40201"].includes(t.accountCode) && t.side === "credit")
+      .reduce((s,t) => s + (t.vatAmount || 0), 0);
+    const inputVAT = transactions
+      .filter(t => ["20202","50101","50201","50301"].includes(t.accountCode) && t.side === "debit")
+      .reduce((s,t) => s + (t.vatAmount || 0), 0);
+    const netVAT = outputVAT - inputVAT;
+    const totalDebit  = transactions.filter(t => t.side === "debit").reduce((s,t) => s + t.grossAmount, 0);
+    const totalCredit = transactions.filter(t => t.side === "credit").reduce((s,t) => s + t.grossAmount, 0);
+    return { outputVAT, inputVAT, netVAT, totalDebit, totalCredit, balanced: Math.abs(totalDebit - totalCredit) < 0.01 };
+  }, [transactions]);
 
-function DeadlineTracker() {
+  const summaryCards = [
+    {
+      label: "Total Output VAT",
+      value: peso(stats.outputVAT),
+      icon: <TrendingUp size={18} />,
+      accent: "border-blue-600",
+      iconBg: "bg-blue-50 text-blue-600",
+      note: "From sales & income accounts",
+    },
+    {
+      label: "Total Input VAT",
+      value: peso(stats.inputVAT),
+      icon: <TrendingDown size={18} />,
+      accent: "border-emerald-500",
+      iconBg: "bg-emerald-50 text-emerald-600",
+      note: "From expense accounts",
+    },
+    {
+      label: "Net VAT Payable",
+      value: peso(stats.netVAT),
+      icon: stats.netVAT >= 0 ? <ArrowUpRight size={18} /> : <Minus size={18} />,
+      accent: stats.netVAT >= 0 ? "border-red-500" : "border-emerald-500",
+      iconBg: stats.netVAT >= 0 ? "bg-red-50 text-red-600" : "bg-emerald-50 text-emerald-600",
+      note: stats.netVAT >= 0 ? "Amount due to BIR" : "Credit / overpayment",
+    },
+    {
+      label: "Trial Balance",
+      value: stats.balanced ? "BALANCED" : "UNBALANCED",
+      icon: <Check size={18} />,
+      accent: stats.balanced ? "border-emerald-500" : "border-red-500",
+      iconBg: stats.balanced ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600",
+      note: `Dr: ${peso(stats.totalDebit)} · Cr: ${peso(stats.totalCredit)}`,
+    },
+  ];
+
+  /* Recent entries for dashboard mini-table */
+  const recent = [...transactions].sort((a,b) => b.id.localeCompare(a.id)).slice(0, 8);
+
   return (
-    <Card>
-      <SectionTitle>Upcoming BIR deadlines</SectionTitle>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {DEADLINES.map(d => (
-          <div key={d.form + d.date} style={{
-            display: 'flex', alignItems: 'center', gap: 12,
-            padding: '10px 12px', borderRadius: 8,
-            background: d.urgent ? T.roseDim : T.bg,
-            border: `1px solid ${d.urgent ? '#FECDD3' : T.border}`,
-          }}>
-            <div style={{ textAlign: 'center', minWidth: 44 }}>
-              <p style={{ fontSize: 9, color: T.textMuted, fontFamily: F.mono, textTransform: 'uppercase' }}>Due</p>
-              <p style={{ fontSize: 13, fontWeight: 500, fontFamily: F.mono, color: d.urgent ? T.rose : T.blue }}>
-                {d.date}
-              </p>
+    <div className="flex-1 overflow-auto bg-slate-50 p-6 space-y-6">
+
+      {/* Summary cards */}
+      <div className="grid grid-cols-4 gap-4">
+        {summaryCards.map(card => (
+          <div key={card.label} className={`bg-white border border-slate-200 border-t-2 ${card.accent} p-5`}>
+            <div className="flex items-start justify-between mb-3">
+              <p className="text-xs font-bold uppercase tracking-widest text-slate-400">{card.label}</p>
+              <div className={`${card.iconBg} p-1.5`}>{card.icon}</div>
             </div>
-            <div style={{ flex: 1 }}>
-              <Badge color={d.urgent ? T.rose : T.blueDeep} bg={d.urgent ? '#FECDD3' : T.blueDim}>{d.form}</Badge>
-              <p style={{ fontSize: 12, color: T.textMid, marginTop: 3, fontFamily: F.body }}>{d.desc}</p>
-            </div>
-            {d.urgent && (
-              <span style={{ fontSize: 10, color: T.rose, fontFamily: F.mono, fontWeight: 500, whiteSpace: 'nowrap' }}>URGENT</span>
-            )}
+            <p className="text-xl font-bold text-slate-900 font-mono tracking-tight mb-1">{card.value}</p>
+            <p className="text-xs text-slate-400 font-mono">{card.note}</p>
           </div>
         ))}
       </div>
-    </Card>
-  )
-}
 
-/* ─── Sidebar ────────────────────────────────────────────────────── */
-const NAV = ['Dashboard', 'Journal Entries', 'EIS Invoices', 'VAT Returns', 'Payroll', 'Audit Log']
-
-function Sidebar({ active, onSelect }) {
-  return (
-    <aside style={{
-      width: 224,
-      background: T.sidebar,
-      borderRight: `1px solid ${T.border}`,
-      display: 'flex',
-      flexDirection: 'column',
-      padding: '1.5rem 0',
-      flexShrink: 0,
-    }}>
-      {/* Branding */}
-      <div style={{ padding: '0 1.25rem 1.25rem' }}>
-        <div style={{
-          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-          width: 36, height: 36, borderRadius: 10,
-          background: T.blue, marginBottom: 10,
-        }}>
-          <span style={{ color: T.white, fontFamily: F.mono, fontSize: 16, fontWeight: 500 }}>₱</span>
-        </div>
-        <p style={{ fontFamily: F.head, fontSize: '0.95rem', color: T.text, lineHeight: 1.3 }}>
-          SME Tax &<br />Payroll Hub
-        </p>
-        <p style={{ fontFamily: F.mono, fontSize: 10, color: T.blue, marginTop: 3, fontWeight: 500 }}>2026 — Phase 2</p>
-      </div>
-
-      <div style={{ height: 1, background: T.border, margin: '0 1.25rem 1rem' }} />
-
-      {/* Nav */}
-      <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2, padding: '0 0.75rem' }}>
-        {NAV.map(item => (
-          <button key={item} onClick={() => onSelect(item)} style={{
-            all: 'unset', cursor: 'pointer',
-            padding: '8px 12px', borderRadius: 8,
-            fontSize: 13, fontFamily: F.body,
-            color: active === item ? T.blue : T.textMid,
-            background: active === item ? T.blueDim : 'transparent',
-            fontWeight: active === item ? 500 : 400,
-            transition: 'all 0.12s',
-          }}>
-            {item}
-          </button>
-        ))}
-      </nav>
-
-      {/* User */}
-      <div style={{ padding: '1rem 1.25rem 0' }}>
-        <div style={{ height: 1, background: T.border, marginBottom: 12 }} />
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{
-            width: 32, height: 32, borderRadius: '50%',
-            background: T.blueDim, display: 'flex',
-            alignItems: 'center', justifyContent: 'center',
-            fontFamily: F.mono, fontSize: 11, color: T.blue, fontWeight: 500,
-          }}>RS</div>
-          <div>
-            <p style={{ fontSize: 13, color: T.text, fontFamily: F.body, fontWeight: 500 }}>R. Santos</p>
-            <p style={{ fontSize: 10, color: T.textMuted, fontFamily: F.mono }}>Fund Accountant</p>
+      {/* VAT Summary table */}
+      <div className="grid grid-cols-3 gap-4">
+        {/* BIR Filing Status */}
+        <div className="bg-white border border-slate-200 p-5 col-span-1">
+          <div className="flex items-center gap-2 mb-4 pb-3 border-b border-slate-100">
+            <Building2 size={14} className="text-blue-600" />
+            <span className="text-xs font-bold uppercase tracking-widest text-slate-700">BIR Compliance</span>
+          </div>
+          <div className="space-y-3">
+            {[
+              ["RDO",          "040 — Cubao",      true  ],
+              ["Fiscal Year",  "2026",              true  ],
+              ["VAT Period",   "April 2026",        true  ],
+              ["Filing Mode",  "eFPS",              true  ],
+              ["EIS Status",   "Connected",         true  ],
+              ["Form 2550-M",  "Due Apr 30",        false ],
+              ["Form 1601-EQ", "Due Apr 25 — URGENT", false],
+            ].map(([k, v, ok]) => (
+              <div key={k} className="flex items-center justify-between">
+                <span className="text-xs text-slate-400 font-mono">{k}</span>
+                <span className={`text-xs font-bold font-mono ${ok ? "text-slate-700" : "text-red-600"}`}>{v}</span>
+              </div>
+            ))}
           </div>
         </div>
-      </div>
-    </aside>
-  )
-}
 
-/* ─── Header ─────────────────────────────────────────────────────── */
-function Header() {
-  const now = new Date()
-  const formatted = now.toLocaleDateString('en-PH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
-  return (
-    <header style={{
-      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      padding: '1rem 2rem',
-      borderBottom: `1px solid ${T.border}`,
-      background: T.white,
-      flexShrink: 0,
-    }}>
-      <div>
-        <h1 style={{
-          fontFamily: F.head, fontSize: '1.5rem', fontWeight: 400,
-          color: T.text, lineHeight: 1,
-        }}>
-          SME Tax &amp; Payroll Hub{' '}
-          <span style={{ color: T.blue }}>2026</span>
-        </h1>
-        <p style={{ fontFamily: F.mono, fontSize: 11, color: T.textMuted, marginTop: 3 }}>
-          {formatted} &nbsp;&middot;&nbsp; Fiscal Year 2026 &nbsp;&middot;&nbsp; RDO 040 &mdash; Cubao
-        </p>
-      </div>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-        <Badge color={T.emerald} bg={T.emeraldDim}>EIS Connected</Badge>
-        <Badge color={T.amber}   bg={T.amberDim}>BIR eFPS Active</Badge>
-      </div>
-    </header>
-  )
-}
-
-/* ─── Dashboard ──────────────────────────────────────────────────── */
-function Dashboard({ transactions, onAdd }) {
-  const totals = useMemo(() => {
-    const outputVAT  = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.outputVAT, 0)
-    const inputVAT   = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.inputVAT, 0)
-    const totalNet   = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.net, 0)
-    const netVAT     = outputVAT - inputVAT
-    return { outputVAT, inputVAT, netVAT, totalNet }
-  }, [transactions])
-
-  return (
-    <main style={{ flex: 1, overflow: 'auto', padding: '1.5rem 2rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', background: T.bg }}>
-      <SummaryStrip totals={totals} />
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '1.25rem' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          <VATChart transactions={transactions} />
-          <LedgerTable transactions={transactions} />
+        {/* Recent Activity */}
+        <div className="bg-white border border-slate-200 col-span-2 flex flex-col">
+          <div className="flex items-center gap-2 px-5 py-3 border-b border-slate-200">
+            <BookOpen size={14} className="text-blue-600" />
+            <span className="text-xs font-bold uppercase tracking-widest text-slate-700">Recent Entries</span>
+          </div>
+          <div className="overflow-auto flex-1">
+            <table className="w-full text-xs font-mono border-collapse">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200">
+                  {["JE ID","Date","Account","Particulars","Amount","VAT"].map(h => (
+                    <th key={h} className="px-3 py-2 text-left font-bold uppercase tracking-widest text-slate-400 whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {recent.map((t, i) => (
+                  <tr key={t.id} className={`border-b border-slate-100 hover:bg-blue-50 transition-colors ${i % 2 ? "bg-slate-50/30" : ""}`}>
+                    <td className="px-3 py-2 text-blue-600 font-bold whitespace-nowrap">{t.id}</td>
+                    <td className="px-3 py-2 text-slate-400 whitespace-nowrap">{fmtDate(t.date)}</td>
+                    <td className="px-3 py-2 text-slate-600 whitespace-nowrap">{t.accountCode}</td>
+                    <td className="px-3 py-2 text-slate-600 max-w-xs truncate">{t.particulars}</td>
+                    <td className="px-3 py-2 text-slate-800 font-semibold text-right whitespace-nowrap">{peso(t.grossAmount)}</td>
+                    <td className="px-3 py-2 text-right whitespace-nowrap">
+                      {t.vatAmount > 0
+                        ? <span className="text-emerald-600 font-semibold">{peso(t.vatAmount)}</span>
+                        : <span className="text-slate-300">—</span>
+                      }
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          <EntryForm onAdd={onAdd} />
-          <DeadlineTracker />
-        </div>
-      </div>
-    </main>
-  )
-}
-
-/* ─── Root App ───────────────────────────────────────────────────── */
-export default function App() {
-  const [activeNav, setActiveNav]     = useState('Dashboard')
-  const [transactions, setTransactions] = useState(SEED)
-
-  function handleAdd(entry) {
-    setTransactions(prev => [...prev, entry])
-  }
-
-  return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: T.bg, fontFamily: F.body }}>
-      <Sidebar active={activeNav} onSelect={setActiveNav} />
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <Header />
-        {activeNav === 'Dashboard'
-          ? <Dashboard transactions={transactions} onAdd={handleAdd} />
-          : (
-            <div style={{
-              flex: 1, display: 'flex', alignItems: 'center',
-              justifyContent: 'center', flexDirection: 'column', gap: 10,
-              background: T.bg,
-            }}>
-              <p style={{ fontFamily: F.head, fontSize: '1.5rem', color: T.textMuted }}>{activeNav}</p>
-              <p style={{ fontFamily: F.mono, fontSize: 12, color: T.textMuted }}>
-                module not yet scaffolded &mdash; coming in Phase 3
-              </p>
-            </div>
-          )
-        }
       </div>
     </div>
-  )
+  );
+}
+
+/* ════════════════════════════════════════════════════════════════ */
+/*  ROOT APP                                                       */
+/* ════════════════════════════════════════════════════════════════ */
+export default function App() {
+  const [view,         setView]         = useState("dashboard");
+  const [transactions, setTransactions] = useState(SEED);
+
+  function addEntry(entry) {
+    setTransactions(prev => [...prev, entry]);
+  }
+
+  const navItems = [
+    { id: "dashboard",       label: "Dashboard",       icon: <LayoutDashboard size={16} /> },
+    { id: "journal-entries", label: "Journal Entries", icon: <BookOpen size={16} /> },
+  ];
+
+  return (
+    <div className="flex h-screen overflow-hidden bg-white font-sans">
+
+      {/* ── Sidebar ─────────────────────────────────────────────── */}
+      <aside className="w-52 flex-shrink-0 bg-slate-900 flex flex-col border-r border-slate-700">
+
+        {/* Logo */}
+        <div className="px-5 py-5 border-b border-slate-700">
+          <div className="flex items-center gap-2 mb-0.5">
+            <div className="w-6 h-6 bg-blue-600 flex items-center justify-center flex-shrink-0">
+              <span className="text-white text-xs font-black">₱</span>
+            </div>
+            <span className="text-white text-sm font-bold tracking-wide">TaxLedger</span>
+          </div>
+          <p className="text-slate-400 text-xs font-mono ml-8">PH · 2026</p>
+        </div>
+
+        {/* Nav */}
+        <nav className="flex-1 py-3 space-y-0.5 px-2">
+          <p className="px-3 pt-3 pb-1.5 text-xs font-bold uppercase tracking-widest text-slate-500">Modules</p>
+          {navItems.map(item => (
+            <button
+              key={item.id}
+              onClick={() => setView(item.id)}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 text-xs font-semibold tracking-wide transition-colors text-left ${
+                view === item.id
+                  ? "bg-blue-600 text-white"
+                  : "text-slate-400 hover:bg-slate-800 hover:text-white"
+              }`}
+            >
+              {item.icon}
+              {item.label}
+              {view === item.id && <ChevronRight size={12} className="ml-auto" />}
+            </button>
+          ))}
+        </nav>
+
+        {/* Sidebar Footer */}
+        <div className="px-4 py-4 border-t border-slate-700 space-y-1">
+          <p className="text-xs text-slate-400 font-mono">R. Santos</p>
+          <p className="text-xs text-slate-500 font-mono">Fund Accountant</p>
+          <p className="text-xs text-slate-600 font-mono">RDO 040 — Cubao</p>
+        </div>
+      </aside>
+
+      {/* ── Main area ───────────────────────────────────────────── */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+
+        {/* Global Header */}
+        <header className="flex-shrink-0 flex items-center justify-between px-6 py-3 bg-white border-b border-slate-200">
+          <div className="flex items-center gap-4">
+            <div>
+              <h1 className="text-sm font-bold text-slate-800 tracking-wide uppercase">
+                SME Tax &amp; Ledger System
+              </h1>
+              <p className="text-xs text-slate-400 font-mono">
+                Fiscal Year 2026 &nbsp;·&nbsp; RDO 040 — Cubao &nbsp;·&nbsp; BIR-Compliant
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-mono font-bold px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200">
+              EIS CONNECTED
+            </span>
+            <span className="text-xs font-mono font-bold px-2.5 py-1 bg-blue-50 text-blue-700 border border-blue-200">
+              eFPS ACTIVE
+            </span>
+            <span className="text-xs font-mono text-slate-400 border-l border-slate-200 pl-3">
+              {new Date().toLocaleDateString("en-PH", { month:"short", day:"2-digit", year:"numeric" })}
+            </span>
+          </div>
+        </header>
+
+        {/* View Router */}
+        <div className="flex-1 overflow-hidden flex flex-col">
+          {view === "dashboard"
+            ? <DashboardView transactions={transactions} />
+            : <JournalEntriesView transactions={transactions} onAdd={addEntry} />
+          }
+        </div>
+      </div>
+    </div>
+  );
 }
